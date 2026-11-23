@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>daisyUI not-prose style invalidation</title>
+<style id="daisy"></style>
+</head>
+<body>
+<p>
+  <button id="v0">Original daisyui.css</button>
+  <button id="v1">#4888 applied</button>
+  <button id="v2">#4888 + <code>.not-prose</code></button>
+  <button id="measure">Measure</button>
+</p>
+<pre id="out">Loading daisyui.css…</pre>
+<main id="tree"></main>
+<script type="module">
+const VERSION = '5.8.2';
+const original = await (await fetch(`https://cdn.jsdelivr.net/npm/daisyui@${VERSION}/daisyui.css`)).text();
+const pr4888 = original
+  .replaceAll('[class*=dropdown-content]', '.dropdown-content')
+  .replaceAll(',[class*=btn]', '');
+const variants = [
+  ['original', original],
+  ['#4888 applied', pr4888],
+  ['#4888 + .not-prose', pr4888.replaceAll('[class~=not-prose]', '.not-prose')],
+];
+
+// About 1,500 plain elements, nested like an app page; no daisyUI class is used.
+const tree = document.getElementById('tree');
+for (let s = 0; s < 30; s++) {
+  const section = tree.appendChild(document.createElement('section'));
+  for (let c = 0; c < 12; c++) {
+    const card = section.appendChild(document.createElement('div'));
+    card.append(document.createElement('img'), document.createElement('p'), document.createElement('span'));
+    card.querySelector('p').textContent = `Item ${s}.${c}`;
+  }
+}
+
+const out = document.getElementById('out');
+let current = 0;
+const use = (i) => {
+  current = i;
+  document.getElementById('daisy').textContent = variants[i][1];
+  out.textContent += `\nUsing: ${variants[i][0]}`;
+};
+
+// One unused class toggled on <html>, then on a leaf <p>; style is flushed after each change.
+const cost = (el) => {
+  void document.body.offsetTop;
+  const runs = 20;
+  const t = performance.now();
+  for (let i = 0; i < runs; i++) {
+    el.classList.toggle('unused-class');
+    void document.body.offsetTop;
+  }
+  el.classList.remove('unused-class');
+  return ((performance.now() - t) / runs).toFixed(2);
+};
+
+document.getElementById('measure').onclick = () => {
+  const p = tree.querySelector('p');
+  out.textContent += `\n${variants[current][0]} (${document.getElementsByTagName('*').length} elements): `
+    + `class on <html> ${cost(document.documentElement)} ms, class on one <p> ${cost(p)} ms`;
+};
+variants.forEach((_, i) => (document.getElementById(`v${i}`).onclick = () => use(i)));
+out.textContent = `daisyUI ${VERSION} loaded from jsDelivr.`;
+use(0);
+</script>
+</body>
+</html>
